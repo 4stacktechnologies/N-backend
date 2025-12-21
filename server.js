@@ -15,7 +15,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/laptop_app")
+mongoose.connect(process.env.MONGO_URI )
 .then(()=>console.log("MongoDB connected"));
 
 app.get("/", (req, res) => {
@@ -29,3 +29,4 @@ app.use("/api/products", productRoutes);
 app.use("/api/bookings", bookingRoutes);
 
 app.listen(5000, ()=>console.log("Server running on port 5000"));
+export default app;

@@ -23,6 +23,35 @@ const generateToken = (user) =>
 /* =========================
    SIGNUP + EMAIL OTP
 ========================= */
+router.post("/resend-otp", async (req, res) => {
+  try {
+    const { email, purpose } = req.body;
+
+    if (!email || !purpose)
+      return res.status(400).json({ msg: "Missing fields" });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ msg: "User not found" });
+
+    const otp = generateOTP();
+
+    user.otp = otp;
+    user.otpPurpose = purpose;
+    user.otpExpiry = Date.now() + 10 * 60 * 1000;
+
+    await user.save();
+
+    await sendEmail(
+      email,
+      "Your new OTP",
+      `<h3>Your OTP is ${otp}</h3><p>Valid for 10 minutes</p>`
+    );
+
+    res.json({ msg: "OTP resent successfully" });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+});
 
 router.post("/signup", async (req, res) => {
   try {
