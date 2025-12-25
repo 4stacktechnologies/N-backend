@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { sendEmail } from "../utils/sendEmail.js";
-import OTP from "../models/Otp.js";
+import Otp from "../models/Otp.js";
 
 const router = express.Router();
 
