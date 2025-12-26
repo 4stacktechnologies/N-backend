@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { sendEmail } from "../utils/sendEmail.js";
-import Otp from "../models/Otp.js";
+import OTP from "../models/Otp.js";
 
 const router = express.Router();
 
@@ -59,7 +59,7 @@ router.post("/signup", async (req, res) => {
 
     // ⛔ user create nahi ho raha
     // OTP temp collection me store
-    await Otp.findOneAndUpdate(
+    await OTP.findOneAndUpdate(
       { email },
       {
         email,
