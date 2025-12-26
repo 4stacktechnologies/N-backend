@@ -9,11 +9,19 @@ import adminRoutes from "./src/routes/adminRoutes.js";
 import shopRoutes from "./src/routes/shopRoutes.js";
 import productRoutes from "./src/routes/productRoutes.js";
 import bookingRoutes from "./src/routes/bookingRoutes.js";
+import cookieParser from "cookie-parser";
 
 dotenv.config();
 const app = express();
-app.use(cors());
+app.use(cookieParser());
+app.use( cors({
+    origin: "http://localhost:5173", // ❌ NOT "*"
+    credentials: true,               // ✅ REQUIRED
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }));
 app.use(express.json());
+
 
 mongoose.connect(process.env.MONGO_URI )
 .then(()=>console.log("MongoDB connected"));

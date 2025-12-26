@@ -2,13 +2,13 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
-import { sendEmail } from "../utils/sendEmail.js";
 import OTP from "../models/Otp.js";
+import { protect } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
 /* =========================
-   Helpers
+   HELPERS
 ========================= */
 
 const generateOTP = () =>
@@ -21,28 +21,16 @@ const generateToken = (user) =>
     { expiresIn: "7d" }
   );
 
+const cookieOptions = {
+  httpOnly: true,
+  secure: false,        // true in production (HTTPS)
+  sameSite: "lax",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
 /* =========================
-   SIGNUP + EMAIL OTP
+   SIGNUP → SEND OTP
 ========================= */
-router.post("/resend-otp", async (req, res) => {
-  const { email } = req.body;
-
-  const otp = generateOTP();
-
-  await OTP.findOneAndUpdate(
-    { email },
-    {
-      otp,
-      otpExpiry: Date.now() + 10 * 60 * 1000,
-    },
-    { upsert: true }
-  );
-
-  await sendEmail(email, "Your new OTP", `<h3>${otp}</h3>`);
-
-  res.json({ msg: "OTP resent" });
-});
-
 router.post("/signup", async (req, res) => {
   try {
     const { name, email, password, mobile } = req.body;
@@ -50,15 +38,12 @@ router.post("/signup", async (req, res) => {
     if (!name || !email || !password)
       return res.status(400).json({ msg: "All fields required" });
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser)
+    if (await User.findOne({ email }))
       return res.status(400).json({ msg: "User already exists" });
 
     const otp = generateOTP();
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ⛔ user create nahi ho raha
-    // OTP temp collection me store
     await OTP.findOneAndUpdate(
       { email },
       {
@@ -66,150 +51,115 @@ router.post("/signup", async (req, res) => {
         otp,
         otpPurpose: "VERIFY_EMAIL",
         otpExpiry: Date.now() + 10 * 60 * 1000,
-        tempUserData: {
-          name,
-          password: hashedPassword,
-          mobile,
-        },
+        tempUserData: { name, password: hashedPassword, mobile },
       },
       { upsert: true }
     );
 
-    await sendEmail(
-      email,
-      "Verify your email",
-      `<h3>Your OTP is ${otp}</h3>`
-    );
+    await sendEmail(email, "Verify Email", `<h3>Your OTP: ${otp}</h3>`);
 
-    res.status(200).json({ msg: "OTP sent to email" });
+    res.json({ msg: "OTP sent to email" });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
 });
 
 /* =========================
-   VERIFY OTP (COMMON)
-   purpose: VERIFY_EMAIL | RESET_PASSWORD
+   RESEND OTP
 ========================= */
+router.post("/resend-otp", async (req, res) => {
+  const { email } = req.body;
+  const otp = generateOTP();
 
+  await OTP.findOneAndUpdate(
+    { email },
+    { otp, otpExpiry: Date.now() + 10 * 60 * 1000 },
+    { upsert: true }
+  );
+
+  await sendEmail(email, "Your OTP", `<h3>${otp}</h3>`);
+  res.json({ msg: "OTP resent" });
+});
+
+/* =========================
+   VERIFY OTP (EMAIL / RESET)
+========================= */
 router.post("/verify-otp", async (req, res) => {
   try {
     const { email, otp, purpose, newPassword } = req.body;
 
-    /* =========================
-       VALIDATIONS
-    ========================= */
-    if (!email || !otp || !purpose) {
-      return res.status(400).json({ msg: "Missing fields" });
-    }
+    const otpDoc = await OTP.findOne({ email });
+    if (!otpDoc) return res.status(404).json({ msg: "OTP not found" });
 
-   
-    /* =========================
-       VERIFY EMAIL → CREATE USER
-    ========================= */
-    if (purpose === "VERIFY_EMAIL") {
-
-       const otpDoc = await OTP.findOne({ email });
-    if (!otpDoc) {
-      return res.status(404).json({ msg: "OTP not found" });
-    }
-
-    if (otpDoc.otp !== otp) {
+    if (otpDoc.otp !== otp)
       return res.status(400).json({ msg: "Invalid OTP" });
-    }
 
-    if (otpDoc.otpExpiry < Date.now()) {
+    if (otpDoc.otpExpiry < Date.now())
       return res.status(400).json({ msg: "OTP expired" });
-    }
 
-      // safety check
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
-        return res.status(400).json({ msg: "User already exists" });
-      }
-
+    /* ===== VERIFY EMAIL ===== */
+    if (purpose === "VERIFY_EMAIL") {
       const user = await User.create({
-        name: otpDoc.tempUserData.name,
+        ...otpDoc.tempUserData,
         email,
-        password: otpDoc.tempUserData.password,
-        mobile: otpDoc.tempUserData.mobile,
         role: "USER",
         isVerified: true,
       });
 
       await OTP.deleteOne({ email });
 
-      return res.json({
-        msg: "Account created successfully",
-        userId: user._id,
-      });
+      return res.json({ msg: "Account created", userId: user._id });
     }
 
-    /* =========================
-       RESET PASSWORD
-    ========================= */
+    /* ===== RESET PASSWORD ===== */
     if (purpose === "RESET_PASSWORD") {
-
-      if (!newPassword) {
-        return res.status(400).json({ msg: "New password required" });
-      }
+      if (!newPassword)
+        return res.status(400).json({ msg: "Password required" });
 
       const user = await User.findOne({ email });
-      if (!user) {
-        return res.status(404).json({ msg: "User not found" });
-      }
-
       user.password = await bcrypt.hash(newPassword, 10);
       await user.save();
 
       await OTP.deleteOne({ email });
 
-      return res.json({
-        msg: "Password reset successfully",
-      });
+      return res.json({ msg: "Password reset successful" });
     }
 
-    /* =========================
-       INVALID PURPOSE
-    ========================= */
-    return res.status(400).json({ msg: "Invalid OTP purpose" });
-
+    res.status(400).json({ msg: "Invalid purpose" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: "Server error" });
+    res.status(500).json({ msg: err.message });
   }
 });
 
 /* =========================
-   LOGIN (JWT)
+   LOGIN → SET COOKIE
 ========================= */
-
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user)
-      return res.status(404).json({ msg: "User not found" });
+    if (!user) return res.status(404).json({ msg: "User not found" });
 
     if (!user.isVerified)
       return res.status(401).json({ msg: "Email not verified" });
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
+    const match = await bcrypt.compare(password, user.password);
+    if (!match)
       return res.status(400).json({ msg: "Invalid credentials" });
 
     const token = generateToken(user);
 
+    res.cookie("token", token, cookieOptions);
+
     res.json({
       msg: "Login successful",
-      token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -217,58 +167,44 @@ router.post("/login", async (req, res) => {
 });
 
 /* =========================
-   RESET PASSWORD (SEND OTP)
+   LOGOUT
 ========================= */
+router.post("/logout", (req, res) => {
+  res.clearCookie("token");
+  res.json({ msg: "Logged out" });
+});
 
+/* =========================
+   CURRENT USER
+========================= */
+router.get("/me", protect, async (req, res) => {
+  const user = await User.findById(req.user.id).select("-password");
+  res.json(user);
+});
+
+/* =========================
+   SEND RESET OTP
+========================= */
 router.post("/reset-password", async (req, res) => {
   const { email } = req.body;
 
   const user = await User.findOne({ email });
-  if (!user)
-    return res.status(404).json({ msg: "User not found" });
+  if (!user) return res.status(404).json({ msg: "User not found" });
 
   const otp = generateOTP();
 
-  user.otp = otp;
-  user.otpPurpose = "RESET_PASSWORD";
-  user.otpExpiry = Date.now() + 10 * 60 * 1000;
-
-  await user.save();
-
-  await sendEmail(
-    email,
-    "Reset your password",
-    `<h3>Your OTP is ${otp}</h3>`
+  await OTP.findOneAndUpdate(
+    { email },
+    {
+      otp,
+      otpPurpose: "RESET_PASSWORD",
+      otpExpiry: Date.now() + 10 * 60 * 1000,
+    },
+    { upsert: true }
   );
 
-  res.json({ msg: "OTP sent to email" });
-});
-
-
-/* =========================
-   SET NEW PASSWORD
-========================= */
-
-router.post("/set-new-password", async (req, res) => {
-  try {
-    const { email, newPassword } = req.body;
-
-    if (!newPassword)
-      return res.status(400).json({ msg: "Password required" });
-
-    const user = await User.findOne({ email });
-    if (!user)
-      return res.status(404).json({ msg: "User not found" });
-
-    const hashed = await bcrypt.hash(newPassword, 10);
-    user.password = hashed;
-
-    await user.save();
-
-    res.json({ msg: "Password reset successful" });
-  } catch (err) {
-    res.status(500).json({ msg: err.message });
-  }
+  await sendEmail(email, "Reset Password", `<h3>${otp}</h3>`);
+  res.json({ msg: "OTP sent" });
 });
 
 export default router;
