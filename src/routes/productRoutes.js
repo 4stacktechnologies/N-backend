@@ -12,7 +12,7 @@ const router = express.Router();
 const isOwnerAllowed = (user, product) => {
   return (
     user.role === "OWNER" &&
-    product.ownerId.toString() !== user._id.toString()
+    product.ownerID.toString() !== user._id.toString()
   );
 };
 
@@ -94,7 +94,7 @@ router.get("/", async (req, res) => {
 
     const products = await Product.find(query)
       .populate("shopId", "name")
-      .populate("ownerId", "name email")
+      .populate("ownerID", "name email")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit))
@@ -128,7 +128,7 @@ router.get("/:id", async (req, res) => {
       isDeleted: false,
     })
       .populate("shopId")
-      .populate("ownerId", "name email");
+      .populate("ownerID", "name email");
 
     if (!product)
       return res.status(404).json({ success: false, msg: "Product not found" });
