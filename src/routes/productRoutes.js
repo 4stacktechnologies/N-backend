@@ -6,50 +6,136 @@ import { allowRoles } from "../middleware/role.middleware.js";
 const router = express.Router();
 
 /* =========================
+   UTILS
+========================= */
+
+const isOwnerAllowed = (user, product) => {
+  return (
+    user.role === "OWNER" &&
+    product.ownerId.toString() !== user._id.toString()
+  );
+};
+
+/* =========================
    CREATE PRODUCT
-   ADMIN / SUPERADMIN / OWNER
 ========================= */
 router.post(
-  "/create",
+  "/",
   protect,
-  allowRoles("ADMIN", "SUPERADMIN", "OWNER"),
+  allowRoles( "OWNER"),
   async (req, res) => {
     try {
       const user = req.user;
-
-      // OWNER can create only for own shop
-      if (user.role === "OWNER" && user.shopId?.toString() !== req.body.shopId) {
-        return res.status(403).json({ msg: "Cannot add product to this shop" });
+      // OWNER can add product only to own shop
+      if (
+        user.role === "OWNER" &&
+        user.shopId?.toString() !== req.body.shopId
+      ) {
+        return res.status(403).json({
+          success: false,
+          msg: "Cannot add product to another shop",
+        });
       }
-
+      
+      // console.log("Creating product for user:", user._id);
       const product = await Product.create({
         ...req.body,
-        ownerId: user._id
+        ownerID: user._id,
       });
 
       res.status(201).json({
-        msg: "Product created",
-        product
+        success: true,
+        msg: "Product created successfully",
+        data: product,
       });
     } catch (err) {
-      res.status(500).json({ msg: err.message });
+      res.status(500).json({
+        success: false,
+        msg: "Product creation failed",
+        error: err.message,
+      });
     }
   }
 );
 
 /* =========================
-   GET ALL PRODUCTS
-   PUBLIC
+   GET PRODUCTS (PUBLIC)
+   Pagination + Search + Filter
 ========================= */
 router.get("/", async (req, res) => {
   try {
-    const products = await Product.find()
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      condition,
+      minPrice,
+      maxPrice,
+    } = req.query;
+
+    const query = { isDeleted: false };
+
+    // 🔍 Search
+    if (search) {
+      query.$or = [
+        { title: new RegExp(search, "i") },
+        { brand: new RegExp(search, "i") },
+        { model: new RegExp(search, "i") },
+      ];
+    }
+
+    // Filters
+    if (condition) query.condition = condition;
+    if (minPrice || maxPrice) {
+      query.sellingPrice = {};
+      if (minPrice) query.sellingPrice.$gte = Number(minPrice);
+      if (maxPrice) query.sellingPrice.$lte = Number(maxPrice);
+    }
+
+    const products = await Product.find(query)
+      .populate("shopId", "name")
+      .populate("ownerId", "name email")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .lean();
+
+    const total = await Product.countDocuments(query);
+
+    res.json({
+      success: true,
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limit),
+      data: products,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      msg: "Failed to fetch products",
+      error: err.message,
+    });
+  }
+});
+
+/* =========================
+   GET SINGLE PRODUCT
+========================= */
+router.get("/:id", async (req, res) => {
+  try {
+    const product = await Product.findOne({
+      _id: req.params.id,
+      isDeleted: false,
+    })
       .populate("shopId")
       .populate("ownerId", "name email");
 
-    res.json(products);
+    if (!product)
+      return res.status(404).json({ success: false, msg: "Product not found" });
+
+    res.json({ success: true, data: product });
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -63,35 +149,31 @@ router.put(
   async (req, res) => {
     try {
       const product = await Product.findById(req.params.id);
-      if (!product)
+      if (!product || product.isDeleted)
         return res.status(404).json({ msg: "Product not found" });
 
-      // OWNER can update only own products
-      if (
-        req.user.role === "OWNER" &&
-        product.ownerId.toString() !== req.user._id.toString()
-      ) {
+      if (isOwnerAllowed(req.user, product))
         return res.status(403).json({ msg: "Access denied" });
-      }
 
-      const updated = await Product.findByIdAndUpdate(
-        req.params.id,
-        req.body,
-        { new: true }
-      );
+      Object.assign(product, req.body);
+      await product.save();
 
       res.json({
-        msg: "Product updated",
-        product: updated
+        success: true,
+        msg: "Product updated successfully",
+        data: product,
       });
     } catch (err) {
-      res.status(500).json({ msg: err.message });
+      res.status(500).json({
+        success: false,
+        error: err.message,
+      });
     }
   }
 );
 
 /* =========================
-   DELETE PRODUCT
+   SOFT DELETE PRODUCT
 ========================= */
 router.delete(
   "/:id",
@@ -100,22 +182,24 @@ router.delete(
   async (req, res) => {
     try {
       const product = await Product.findById(req.params.id);
-      if (!product)
+      if (!product || product.isDeleted)
         return res.status(404).json({ msg: "Product not found" });
 
-      // OWNER restriction
-      if (
-        req.user.role === "OWNER" &&
-        product.ownerId.toString() !== req.user._id.toString()
-      ) {
+      if (isOwnerAllowed(req.user, product))
         return res.status(403).json({ msg: "Access denied" });
-      }
 
-      await Product.findByIdAndDelete(req.params.id);
+      product.isDeleted = true;
+      await product.save();
 
-      res.json({ msg: "Product deleted" });
+      res.json({
+        success: true,
+        msg: "Product deleted successfully",
+      });
     } catch (err) {
-      res.status(500).json({ msg: err.message });
+      res.status(500).json({
+        success: false,
+        error: err.message,
+      });
     }
   }
 );
