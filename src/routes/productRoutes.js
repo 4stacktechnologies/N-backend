@@ -73,31 +73,42 @@ router.get("/", async (req, res) => {
       maxPrice,
     } = req.query;
 
-    const query = { isDeleted: false };
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
 
-    // 🔍 Search
-    if (search) {
-      query.$or = [
-        { title: new RegExp(search, "i") },
-        { brand: new RegExp(search, "i") },
-        { model: new RegExp(search, "i") },
+    const query = {
+      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }],
+    };
+
+    if (search?.trim()) {
+      query.$and = [
+        {
+          $or: [
+            { title: { $regex: search, $options: "i" } },
+            { brand: { $regex: search, $options: "i" } },
+            { model: { $regex: search, $options: "i" } },
+          ],
+        },
       ];
     }
 
-    // Filters
-    if (condition) query.condition = condition;
+    if (condition) {
+      query.condition = new RegExp(`^${condition}$`, "i");
+    }
+
     if (minPrice || maxPrice) {
       query.sellingPrice = {};
       if (minPrice) query.sellingPrice.$gte = Number(minPrice);
       if (maxPrice) query.sellingPrice.$lte = Number(maxPrice);
     }
 
+    console.log("QUERY:", query);
+
     const products = await Product.find(query)
-      .populate("shopId", "name")
       .populate("ownerID", "name email")
       .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(Number(limit))
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
       .lean();
 
     const total = await Product.countDocuments(query);
@@ -105,8 +116,8 @@ router.get("/", async (req, res) => {
     res.json({
       success: true,
       total,
-      page: Number(page),
-      pages: Math.ceil(total / limit),
+      page: pageNum,
+      pages: Math.ceil(total / limitNum),
       data: products,
     });
   } catch (err) {
@@ -118,16 +129,16 @@ router.get("/", async (req, res) => {
   }
 });
 
+
 /* =========================
    GET SINGLE PRODUCT
 ========================= */
 router.get("/:id", async (req, res) => {
   try {
+    console.log("Fetching product with ID:", req.params.id);
     const product = await Product.findOne({
       _id: req.params.id,
-      isDeleted: false,
     })
-      .populate("shopId")
       .populate("ownerID", "name email");
 
     if (!product)
