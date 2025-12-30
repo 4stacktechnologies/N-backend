@@ -17,12 +17,12 @@ const productSchema = new mongoose.Schema(
     },
 
     category: {
-      type: String, // mobile, laptop, tablet, etc.
+      type: String, // Mobile, Laptop, Tablet, etc.
       required: true,
     },
 
     brand: {
-      type: String, // Apple, Samsung, Dell
+      type: String, // Lenovo, Apple, HP
       required: true,
     },
 
@@ -41,14 +41,14 @@ const productSchema = new mongoose.Schema(
     },
 
     usageDuration: {
-      type: String, // "3 months", "1 year"
-      default: null, // only for USED
+      type: String,
+      default: null, // Only for USED
     },
 
     physicalCondition: {
       type: String,
       enum: ["EXCELLENT", "GOOD", "AVERAGE", "POOR"],
-      default: null, // only for USED
+      default: null,
     },
 
     isRefurbished: {
@@ -59,22 +59,71 @@ const productSchema = new mongoose.Schema(
     /* =====================
        HARDWARE DETAILS
     ===================== */
-    ram: String, // 8GB, 16GB
-    rom: String, // 128GB, 256GB
-
-    processor: {
-      model: String,
-      generation: String,
-      company: String,
+    ram: {
+      type: String, // 8GB, 16GB
     },
 
-    color: String,
+    rom: {
+      type: String, // 256GB, 512GB
+    },
+
+    processor: {
+      company: String, // Intel, AMD, Apple
+      model: String,   // Core 5 120U
+      generation: String,
+    },
+
+    graphics: {
+      type: String, // Integrated / RTX 3050
+      default: null,
+    },
+
+    /* =====================
+       DISPLAY
+    ===================== */
+    display: {
+      size: String,        // 15.6 inch
+      resolution: String, // FHD, QHD
+      panel: String,      // IPS, OLED
+      refreshRate: String // 60Hz, 120Hz
+    },
+
+    /* =====================
+       SOFTWARE / OS
+    ===================== */
+    operatingSystem: {
+      type: String, // Windows 11, macOS
+    },
+
+    preInstalledSoftware: [
+      {
+        type: String, // MS Office 2024
+      },
+    ],
+
+    /* =====================
+       BUILD & DESIGN
+    ===================== */
+    color: {
+      type: String, // Arctic Grey
+    },
+
+    keyboard: {
+      backlit: {
+        type: Boolean,
+        default: false,
+      },
+      layout: {
+        type: String, // QWERTY
+        default: null,
+      },
+    },
 
     /* =====================
        PRICING
     ===================== */
     originalPrice: {
-      type: Number, // MRP
+      type: Number,
     },
 
     sellingPrice: {
@@ -96,7 +145,7 @@ const productSchema = new mongoose.Schema(
     },
 
     warrantyPeriod: {
-      type: String, // "6 months", "1 year"
+      type: String, // 6 months, 1 year
       default: null,
     },
 
@@ -116,6 +165,7 @@ const productSchema = new mongoose.Schema(
     shopID: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Shop",
+      default: null,
     },
 
     ownerID: {
@@ -125,7 +175,7 @@ const productSchema = new mongoose.Schema(
     },
 
     /* =====================
-       STATUS
+       STATUS & MODERATION
     ===================== */
     status: {
       type: String,
@@ -135,7 +185,7 @@ const productSchema = new mongoose.Schema(
 
     isApproved: {
       type: Boolean,
-      default: false, // admin approval
+      default: false,
     },
   },
   { timestamps: true }
