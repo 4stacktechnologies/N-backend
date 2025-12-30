@@ -2,6 +2,7 @@ import express from "express";
 import Product from "../models/Product.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { allowRoles } from "../middleware/role.middleware.js";
+import e from "express";
 
 const router = express.Router();
 
@@ -189,27 +190,28 @@ router.put(
 router.delete(
   "/:id",
   protect,
-  allowRoles("ADMIN", "SUPERADMIN", "OWNER"),
+  allowRoles( "OWNER"),
   async (req, res) => {
     try {
-      const product = await Product.findById(req.params.id);
-      if (!product || product.isDeleted)
-        return res.status(404).json({ msg: "Product not found" });
+      const { id } = req.params;
 
-      if (isOwnerAllowed(req.user, product))
-        return res.status(403).json({ msg: "Access denied" });
+      const product = await Product.findByIdAndDelete(id);
 
-      product.isDeleted = true;
-      await product.save();
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          msg: "Product not found",
+        });
+      }
 
       res.json({
         success: true,
-        msg: "Product deleted successfully",
+        msg: "Product permanently deleted",
       });
     } catch (err) {
       res.status(500).json({
         success: false,
-        error: err.message,
+        msg: err.message,
       });
     }
   }
