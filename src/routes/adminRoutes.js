@@ -4,6 +4,7 @@ import User from "../models/User.js";
 import Shop from "../models/Shop.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { allowRoles } from "../middleware/role.middleware.js";
+import Product from "../models/Product.js";
 
 const router = express.Router();
 
