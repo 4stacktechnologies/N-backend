@@ -9,15 +9,34 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      default: "USER"
+      default: "USER",
+    },
+
+    // ✅ NEW FIELDS
+    bio: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 300,
+    },
+
+    imageUrl: {
+      type: String, // Cloudinary / S3 / any hosted image
+      default: "",
+    },
+
+    // optional: store image public id (useful for delete/update)
+    imagePublicId: {
+      type: String,
+      default: "",
     },
 
     otp: String,
     otpExpiry: Date,
     isVerified: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
   },
   { timestamps: true }
 );

@@ -208,4 +208,57 @@ router.post("/reset-password", async (req, res) => {
   res.json({ msg: "OTP sent" });
 });
 
+
+/* =========================
+   UPDATE BIO
+========================= */
+router.put("/profile/bio", protect, async (req, res) => {
+  try {
+    const { bio } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { bio },
+      { new: true }
+    ).select("-password");
+
+    res.json({
+      msg: "Bio updated successfully",
+      bio: user.bio,
+    });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+/* =========================
+   UPDATE PROFILE IMAGE
+========================= */
+router.put("/profile/image", protect, async (req, res) => {
+  try {
+    const { imageUrl, imagePublicId } = req.body;
+
+    if (!imageUrl) {
+      return res.status(400).json({ msg: "Image URL required" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        imageUrl,
+        imagePublicId: imagePublicId || "",
+      },
+      { new: true }
+    ).select("-password");
+
+    res.json({
+      msg: "Profile image updated",
+      imageUrl: user.imageUrl,
+    });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+
 export default router;
