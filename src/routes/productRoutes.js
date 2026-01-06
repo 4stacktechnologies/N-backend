@@ -75,15 +75,25 @@ router.get("/", async (req, res) => {
       condition,
       minPrice,
       maxPrice,
+      segment,        // NEW
+      count,          // NEW
+      category,           // NEW
     } = req.query;
 
     const pageNum = Number(page);
     const limitNum = Number(limit);
+    const countNum = Number(count);
 
+    /* ======================
+       BASE QUERY
+    ====================== */
     const query = {
       $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }],
     };
 
+    /* ======================
+       SEARCH
+    ====================== */
     if (search?.trim()) {
       query.$and = [
         {
@@ -96,10 +106,23 @@ router.get("/", async (req, res) => {
       ];
     }
 
+    /* ======================
+       CONDITION FILTER
+    ====================== */
     if (condition) {
       query.condition = new RegExp(`^${condition}$`, "i");
     }
 
+    /* ======================
+       PRODUCT TYPE FILTER
+    ====================== */
+    if (category) {
+      query.category = new RegExp(`^${category}$`, "i"); // Laptop, Mobile etc
+    }
+
+    /* ======================
+       PRICE FILTER
+    ====================== */
     if (minPrice || maxPrice) {
       query.sellingPrice = {};
       if (minPrice) query.sellingPrice.$gte = Number(minPrice);
@@ -108,11 +131,24 @@ router.get("/", async (req, res) => {
 
     console.log("QUERY:", query);
 
+    if (segment === "random") {
+      const randomProducts = await Product.aggregate([
+        { $match: query },
+        { $sample: { size: countNum || 3 } }, // default 3
+      ]);
+
+      return res.json({
+        success: true,
+        total: randomProducts.length,
+        data: randomProducts,
+      });
+    }
+
     const products = await Product.find(query)
       .populate("ownerID", "name email")
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
-      .limit(limitNum)
+      .limit(countNum || limitNum) // count overrides limit
       .lean();
 
     const total = await Product.countDocuments(query);
@@ -132,6 +168,7 @@ router.get("/", async (req, res) => {
     });
   }
 });
+
 
 
 /* =========================
@@ -221,7 +258,6 @@ router.delete(
 );
 
 
-
 router.post("/extract",
 protect, allowRoles("OWNER"),
   async (req, res) => {
@@ -237,67 +273,134 @@ protect, allowRoles("OWNER"),
       return res.status(400).json({ message: "Text is required" });
     }
 
-    const prompt = `
-You are a data extraction engine.
-Extract laptop product details from the given text.
+ const prompt = `
+You are a professional product data extraction and pricing engine
+specialized in electronics resale listings (laptops, mobiles, accessories).
 
-STRICT RULES:
+Think like an experienced store owner who wants:
+- Fast sales
+- Competitive pricing
+- Clean, complete product listings
+
+TASK:
+Extract structured product data from unstructured or semi-structured text.
+If price is not mentioned, intelligently PREDICT the BEST SELLING PRICE
+based on brand, specifications, market positioning, and condition.
+
+PRICING RULES:
+- sellingPrice must be a realistic market price (not MRP)
+- If product is NEW → price slightly below market MRP
+- If product is USED → price based on usageDuration & specs
+- negotiable must be TRUE unless explicitly stated otherwise
+- originalPrice should be set only if MRP is clearly mentioned
+
+STRICT RULES (DO NOT BREAK):
 - Return ONLY valid JSON
 - NO markdown
 - NO explanations
-- If a value is missing or unknown, use null
-- Do NOT guess prices
-- Category is always "Laptop"
-- condition must be "NEW" or "USED"
-- keyboard.backlit must be true or false
-- preInstalledSoftware must be an array
+- NO comments
+- NO extra keys
+- If a value is missing or unclear, use null
+- category MUST be exactly: "Laptop", "Mobile", or "Accessory"
+- condition.condition must be "NEW" or "USED"
+- Assume condition is "NEW" unless explicitly stated
+- keyboard.backlit must ALWAYS be true or false
+- preInstalledSoftware must ALWAYS be an array
+- Ports must be mapped into counts/booleans
+- Convert shorthand specs ONLY if explicitly clear
+- Do NOT merge multiple products
+- If multiple products are mentioned, extract ONLY the FIRST one
+- sellingPrice must be a number or null
+- negotiable must ALWAYS be true
 
 RETURN JSON IN THIS EXACT STRUCTURE:
 {
-  "basic": {
-    "title": null,
-    "brand": null,
+  "title": null,
+  "description": null,
+  "category": null,
+  "brand": null,
+  "model": null,
+
+  "condition": "NEW",
+  "usageDuration": null,
+  "physicalCondition": null,
+  "isRefurbished": false,
+
+  "ram": {
+    "size": null,
+    "type": null
+  },
+  "storage": {
+    "size": null,
+    "type": null
+  },
+
+  "processor": {
+    "company": null,
     "model": null,
-    "category": "Laptop",
-    "description": null
+    "generation": null,
+    "baseClock": null,
+    "turboClock": null,
+    "cache": null
   },
-  "condition": {
-    "condition": "NEW",
-    "usageDuration": null,
-    "physicalCondition": null,
-    "isRefurbished": false
-  },
-  "hardware": {
-    "ram": null,
-    "rom": null,
-    "processor": {
-      "company": null,
-      "model": null,
-      "generation": null
-    },
-    "graphics": null
-  },
+
+  "graphics": null,
+
   "display": {
     "size": null,
     "resolution": null,
     "panel": null,
-    "refreshRate": null
+    "refreshRate": null,
+    "brightness": null,
+    "aspectRatio": null
   },
-  "software": {
-    "operatingSystem": null,
-    "preInstalledSoftware": []
+
+  "operatingSystem": null,
+  "preInstalledSoftware": [],
+
+  "color": null,
+  "keyboard": {
+    "backlit": false,
+    "layout": null
   },
-  "design": {
-    "color": null,
-    "keyboard": {
-      "backlit": false,
-      "layout": null
-    }
+
+  "ports": {
+    "usbTypeC": 0,
+    "usbTypeA": 0,
+    "hdmi": 0,
+    "microSD": false,
+    "rj45": false,
+    "headphoneJack": true
   },
-  "extras": {
-    "warrantyAvailable": false,
-    "warrantyPeriod": null
-  }
+
+  "wifi": null,
+  "bluetooth": null,
+
+  "battery": {
+    "capacity": null
+  },
+  "charger": {
+    "power": null,
+    "type": null
+  },
+
+  "camera": {
+    "resolution": null
+  },
+
+  "audio": null,
+  "fingerprintReader": false,
+  "opticalDrive": false,
+
+  "originalPrice": null,
+  "sellingPrice": null,
+  "negotiable": true,
+
+  "warrantyAvailable": false,
+  "warrantyPeriod": null,
+
+  "status": "AVAILABLE",
+  "images": []
 }
 
 TEXT TO EXTRACT FROM:
@@ -305,6 +408,7 @@ TEXT TO EXTRACT FROM:
 ${text}
 """
 `;
+
 
     const completion = await client.chat.completions.create({
       model: "sonar-pro",

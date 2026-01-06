@@ -5,31 +5,16 @@ const productSchema = new mongoose.Schema(
     /* =====================
        BASIC INFO
     ===================== */
-    title: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    description: {
-      type: String,
-      trim: true,
-    },
+    title: { type: String, required: true, trim: true },
+    description: { type: String, trim: true },
 
     category: {
-      type: String, // Mobile, Laptop, Tablet, etc.
+      type: String, // Laptop, Mobile, Tablet
       required: true,
     },
 
-    brand: {
-      type: String, // Lenovo, Apple, HP
-      required: true,
-    },
-
-    model: {
-      type: String,
-      required: true,
-    },
+    brand: { type: String, required: true },
+    model: { type: String, required: true },
 
     /* =====================
        CONDITION INFO
@@ -40,10 +25,7 @@ const productSchema = new mongoose.Schema(
       required: true,
     },
 
-    usageDuration: {
-      type: String,
-      default: null, // Only for USED
-    },
+    usageDuration: { type: String, default: null },
 
     physicalCondition: {
       type: String,
@@ -51,30 +33,37 @@ const productSchema = new mongoose.Schema(
       default: null,
     },
 
-    isRefurbished: {
-      type: Boolean,
-      default: false,
-    },
+    isRefurbished: { type: Boolean, default: false },
 
     /* =====================
        HARDWARE DETAILS
     ===================== */
-    ram: {
-      type: String, // 8GB, 16GB
-    },
+   ram: {
+  size: { type: String },
+  type: { type: String },
+},
 
-    rom: {
-      type: String, // 256GB, 512GB
-    },
+storage: {
+  size: { type: String },
+  type: { type: String },
+},
+
+charger: {
+  power: { type: String },
+  type: { type: String },
+},
+
 
     processor: {
-      company: String, // Intel, AMD, Apple
-      model: String,   // Core 5 120U
-      generation: String,
+      company: String,     // Intel
+      model: String,       // Core i5 1335U
+      baseClock: String,   // 1.3 GHz
+      turboClock: String,  // Up to 4.6 GHz
+      cache: String,       // 12 MB Smart Cache
     },
 
     graphics: {
-      type: String, // Integrated / RTX 3050
+      type: String,       // Intel Iris Xe
       default: null,
     },
 
@@ -83,48 +72,89 @@ const productSchema = new mongoose.Schema(
     ===================== */
     display: {
       size: String,        // 15.6 inch
-      resolution: String, // FHD, QHD
-      panel: String,      // IPS, OLED
-      refreshRate: String // 60Hz, 120Hz
+      resolution: String,  // 1920x1080
+      panel: String,       // IPS
+      refreshRate: String, // 60Hz
+      brightness: String,  // 300 Nits
+      aspectRatio: String, // 16:9
     },
 
     /* =====================
        SOFTWARE / OS
     ===================== */
     operatingSystem: {
-      type: String, // Windows 11, macOS
+      type: String, // Windows 11 Home
     },
 
     preInstalledSoftware: [
       {
-        type: String, // MS Office 2024
+        type: String, // MS Office 2021
       },
     ],
 
     /* =====================
-       BUILD & DESIGN
+       CONNECTIVITY & PORTS
     ===================== */
-    color: {
-      type: String, // Arctic Grey
+    ports: {
+      usbTypeC: Number,
+      usbTypeA: Number,
+      hdmi: Number,
+      microSD: Boolean,
+      rj45: Boolean,
+      headphoneJack: Boolean,
     },
 
+    wifi: {
+      type: String, // Wi-Fi 6
+    },
+
+    bluetooth: {
+      type: String,
+      default: null,
+    },
+
+    opticalDrive: {
+      type: Boolean, // CD/DVD
+      default: false,
+    },
+
+    /* =====================
+       BATTERY & POWER
+    ===================== */
+    battery: {
+      capacity: String, // 54 Wh
+    },
+    camera: {
+      resolution: String, // 720p
+    },
+
+    audio: {
+      type: String, // Dolby Atmos
+    },
+
+    microphone: {
+      type: String, // Combo Mic
+    },
+
+    fingerprintReader: {
+      type: Boolean,
+      default: false,
+    },
+
+    /* =====================
+       BUILD & DESIGN
+    ===================== */
+    color: String,
+
     keyboard: {
-      backlit: {
-        type: Boolean,
-        default: false,
-      },
-      layout: {
-        type: String, // QWERTY
-        default: null,
-      },
+      backlit: { type: Boolean, default: false },
+      layout: { type: String, default: null },
     },
 
     /* =====================
        PRICING
     ===================== */
-    originalPrice: {
-      type: Number,
-    },
+    originalPrice: Number,
 
     sellingPrice: {
       type: Number,
@@ -145,7 +175,7 @@ const productSchema = new mongoose.Schema(
     },
 
     warrantyPeriod: {
-      type: String, // 6 months, 1 year
+      type: String,
       default: null,
     },
 
