@@ -2,17 +2,36 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    name: String,
-    email: { type: String, unique: true },
-    mobile: String,
-    password: String,
+    name: {
+      type: String,
+      trim: true,
+    },
+
+    email: {
+      type: String,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+
+    mobile: {
+      type: String,
+      trim: true,
+    },
+
+    password: {
+      type: String,
+    },
 
     role: {
       type: String,
       default: "USER",
     },
 
-    // ✅ NEW FIELDS
+    /* =====================
+       PROFILE FIELDS
+    ===================== */
+
     bio: {
       type: String,
       default: "",
@@ -20,19 +39,24 @@ const userSchema = new mongoose.Schema(
       maxlength: 300,
     },
 
-    imageUrl: {
-      type: String, // Cloudinary / S3 / any hosted image
-      default: "",
+    avatar: {
+      url: {
+        type: String, // Cloudinary / S3 URL
+        default: "",
+      },
+      publicId: {
+        type: String, // Cloudinary public_id (for delete/update)
+        default: "",
+      },
     },
 
-    // optional: store image public id (useful for delete/update)
-    imagePublicId: {
-      type: String,
-      default: "",
-    },
+    /* =====================
+       AUTH FIELDS
+    ===================== */
 
     otp: String,
     otpExpiry: Date,
+
     isVerified: {
       type: Boolean,
       default: false,

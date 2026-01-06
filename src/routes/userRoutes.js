@@ -208,52 +208,37 @@ router.post("/reset-password", async (req, res) => {
   res.json({ msg: "OTP sent" });
 });
 
-
-/* =========================
-   UPDATE BIO
-========================= */
-router.put("/profile/bio", protect, async (req, res) => {
+router.put("/edit-profile", protect, async (req, res) => {
   try {
-    const { bio } = req.body;
+    const {
+      name,
+      mobile,
+      bio,
+      avatarUrl,
+      avatarPublicId,
+    } = req.body;
 
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      { bio },
-      { new: true }
-    ).select("-password");
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user) return res.status(404).json({ msg: "User not found" });
 
-    res.json({
-      msg: "Bio updated successfully",
-      bio: user.bio,
-    });
-  } catch (err) {
-    res.status(500).json({ msg: err.message });
-  }
-});
+    /* =========================
+       UPDATE FIELDS IF PROVIDED
+    ========================= */
 
-/* =========================
-   UPDATE PROFILE IMAGE
-========================= */
-router.put("/profile/image", protect, async (req, res) => {
-  try {
-    const { imageUrl, imagePublicId } = req.body;
+    if (name !== undefined) user.name = name.trim();
+    if (mobile !== undefined) user.mobile = mobile.trim();
+    if (bio !== undefined) user.bio = bio.trim();
 
-    if (!imageUrl) {
-      return res.status(400).json({ msg: "Image URL required" });
+    if (avatarUrl !== undefined) {
+      user.avatar.url = avatarUrl;
+      user.avatar.publicId = avatarPublicId || "";
     }
 
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      {
-        imageUrl,
-        imagePublicId: imagePublicId || "",
-      },
-      { new: true }
-    ).select("-password");
+    await user.save();
 
     res.json({
-      msg: "Profile image updated",
-      imageUrl: user.imageUrl,
+      msg: "Profile updated successfully",
+      user,
     });
   } catch (err) {
     res.status(500).json({ msg: err.message });
