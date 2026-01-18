@@ -161,6 +161,7 @@ router.post("/login", async (req, res) => {
         email: user.email,
         mobile: user.mobile,
         role: user.role,
+        avatar: user.avatar || null,
       },
     });
   } catch (err) {
